@@ -1,0 +1,13 @@
+{
+  "name": "pi-copium",
+  "version": "0.1.0",
+  "description": "something to smoke while you burn tokens",
+  "keywords": ["pi-package"],
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  },
+  "pi": {
+    "extensions": ["./extensions"]
+  }
+}
