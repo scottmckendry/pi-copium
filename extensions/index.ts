@@ -12,7 +12,10 @@
  * Copyright (c) 2026 Eric Sison — MIT License
  */
 
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type {
+  ExtensionAPI,
+  ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 
 import { TAGLINES, WORKING_MESSAGES } from "./data.ts";
 import {
@@ -29,7 +32,7 @@ import {
   StreamingWordCounter,
   TokenRateTracker,
 } from "./format.ts";
-import { pick } from "./helpers.ts";
+import { pick, createDeck } from "./helpers.ts";
 import { CopiumHeader } from "./components.ts";
 
 // --- SPINNER ---
@@ -71,6 +74,7 @@ function makeTurnState(): TurnState {
 // --- MAIN EXTENSION ---
 export default function (pi: ExtensionAPI) {
   const tagline = pick(TAGLINES);
+  const nextWorkingMessage = createDeck(WORKING_MESSAGES, Date.now());
   const state = makeTurnState();
 
   function stopTimer(): void {
@@ -90,7 +94,9 @@ export default function (pi: ExtensionAPI) {
     // Spinner rendered inside the message (not leading indicator) for consistent appearance.
     const spinner = ctx.ui.theme.fg(
       "accent",
-      SPINNER_FRAMES[Math.floor(now / SPINNER_FRAME_MS) % SPINNER_FRAMES.length]!,
+      SPINNER_FRAMES[
+        Math.floor(now / SPINNER_FRAME_MS) % SPINNER_FRAMES.length
+      ]!,
     );
     const shimmered = shimmerString(
       state.currentWord,
@@ -141,7 +147,7 @@ export default function (pi: ExtensionAPI) {
 
     state.startTime = Date.now();
     state.shimmerOrigin = state.startTime;
-    state.currentWord = pick(WORKING_MESSAGES);
+    state.currentWord = nextWorkingMessage();
     state.confirmTokens = 0;
     state.liveTokens = 0;
     state.counter.reset();
@@ -186,7 +192,7 @@ export default function (pi: ExtensionAPI) {
   // --- TOOL EXECUTION (re-randomize word) ---
   pi.on("tool_execution_start", (_event, ctx) => {
     if (ctx.mode !== "tui" || !state.busy) return;
-    state.currentWord = pick(WORKING_MESSAGES);
+    state.currentWord = nextWorkingMessage();
     state.shimmerOrigin = Date.now();
   });
 
