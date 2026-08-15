@@ -56,7 +56,6 @@ export class CopiumHeader implements Component {
       ];
     }
 
-    const innerWidth = Math.min(66, width - 2);
     const border = (t: string) => this.theme.fg("borderMuted", t);
     const accentToken = (
       ["accent", "borderAccent", "thinkingHigh", "borderAccent"] as const
@@ -66,6 +65,15 @@ export class CopiumHeader implements Component {
     const eyes = this.frame % 6 === 4 ? "— —" : "• •";
     const face = faceLines(eyes);
     const cwd = process.cwd().split("/").pop() || process.cwd();
+
+    const rows = [
+      `${mascot(`  ${face[0]}`)}   ${this.theme.fg("accent", this.theme.bold("π COPIUM"))}`,
+      `${mascot(`  ${face[1]}`)}   ${this.theme.fg("muted", this.tagline)}`,
+      `${mascot(`  ${face[2]}`)}   ${this.theme.fg("text", this.modelName)}${this.theme.fg("dim", ` · pi ${VERSION}`)}`,
+      this.theme.fg("dim", `  ${cwd}  •  tokens go brrr`),
+    ];
+    const contentWidth = Math.max(...rows.map(visibleWidth));
+    const innerWidth = Math.min(contentWidth + 1, width - 2);
 
     const row = (content: string): string => {
       const padding = " ".repeat(
@@ -80,16 +88,7 @@ export class CopiumHeader implements Component {
 
     return [
       border(`╭${"─".repeat(innerWidth)}╮`),
-      row(
-        `${mascot(`  ${face[0]}`)}   ${this.theme.fg("accent", this.theme.bold("π COPIUM"))}`,
-      ),
-      row(
-        `${mascot(`  ${face[1]}`)}   ${this.theme.fg("muted", this.tagline)}`,
-      ),
-      row(
-        `${mascot(`  ${face[2]}`)}   ${this.theme.fg("text", this.modelName)}${this.theme.fg("dim", ` · pi ${VERSION}`)}`,
-      ),
-      row(`${this.theme.fg("dim", `  ${cwd}  •  tokens go brrr`)}`),
+      ...rows.map(row),
       border(`╰${"─".repeat(innerWidth)}╯`),
       "",
     ].map((line) => truncateToWidth(line, width, ""));
