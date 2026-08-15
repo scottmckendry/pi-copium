@@ -74,7 +74,7 @@ export class CopiumHeader implements Component {
       this.theme.fg("dim", `  ${cwd}  •  tokens go brrr`),
     ];
     const contentWidth = Math.max(...rows.map(visibleWidth));
-    const innerWidth = Math.min(contentWidth + 1, width - 2);
+    const innerWidth = Math.min(contentWidth + 2, width - 2);
 
     const row = (content: string): string => {
       const padding = " ".repeat(
