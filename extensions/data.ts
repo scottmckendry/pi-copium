@@ -17,6 +17,12 @@ export const TAGLINES = [
   "the agent is always right (it isn't)",
   "trust the process (there is no process)",
   "vibes-based architecture",
+  "hope-driven development",
+  "i am become token, destroyer of context windows",
+  "in AI we trust (we shouldn't)",
+  "the ci is green (ignore the warnings)",
+  "what's a type error between friends",
+  "works on my GPU",
 ];
 
 // --- WORKING MESSAGES ---
