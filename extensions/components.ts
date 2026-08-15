@@ -57,9 +57,10 @@ export class CopiumHeader implements Component {
     }
 
     const border = (t: string) => this.theme.fg("borderMuted", t);
-    const accentToken = (
-      ["accent", "borderAccent", "thinkingHigh", "borderAccent"] as const
-    )[Math.floor(this.frame / 2) % 4];
+    const accentToken =
+      (["accent", "borderAccent", "thinkingHigh", "borderAccent"] as const)[
+        Math.floor(this.frame / 2) % 4
+      ] ?? "accent";
     const mascot = (t: string) => this.theme.fg(accentToken, t);
     // blink every 6 frames
     const eyes = this.frame % 6 === 4 ? "— —" : "• •";

@@ -16,7 +16,18 @@ export const SHIMMER_INTERVAL_MS = 50;
 export const METER_INTERVAL_MS = 100;
 
 /** Pi's default working-indicator frames (same braille spinner as pi-tui's Loader). */
-export const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+export const SPINNER_FRAMES = [
+  "⠋",
+  "⠙",
+  "⠹",
+  "⠸",
+  "⠼",
+  "⠴",
+  "⠦",
+  "⠧",
+  "⠇",
+  "⠏",
+];
 
 /** Milliseconds per spinner frame, matching pi-tui's Loader cadence. */
 export const SPINNER_FRAME_MS = 80;
@@ -67,7 +78,8 @@ export class ActivityMeter {
   push(tokensPerSecond: number): void {
     let level = 0;
     for (let i = RATE_THRESHOLDS.length - 1; i >= 0; i--) {
-      if (tokensPerSecond > RATE_THRESHOLDS[i]) {
+      const threshold = RATE_THRESHOLDS[i];
+      if (threshold !== undefined && tokensPerSecond > threshold) {
         level = i + 1;
         break;
       }
@@ -78,7 +90,9 @@ export class ActivityMeter {
 
   render(theme: Pick<Theme, "fg">): string {
     return this.#levels
-      .map((level) => theme.fg(level === 0 ? "dim" : "accent", METER_BRAILLE[level]!))
+      .map((level) =>
+        theme.fg(level === 0 ? "dim" : "accent", METER_BRAILLE[level] ?? "⣿"),
+      )
       .join("");
   }
 
@@ -89,7 +103,9 @@ export class ActivityMeter {
 
 export function formatTokenRate(tokensPerSecond: number): string {
   const rounded = Math.round(Math.max(0, tokensPerSecond));
-  return rounded === 0 ? "--- tok/s" : `${rounded.toString().padStart(3)} tok/s`;
+  return rounded === 0
+    ? "--- tok/s"
+    : `${rounded.toString().padStart(3)} tok/s`;
 }
 
 /**
@@ -115,8 +131,7 @@ export function shimmerString(
   const enterS = litEnter / unitsPerS;
   const litS = (litExit - litEnter) / unitsPerS;
   const phase =
-    (elapsedMs / 1000) %
-    (enterS + litS + (period - litExit) / unitsPerS);
+    (elapsedMs / 1000) % (enterS + litS + (period - litExit) / unitsPerS);
   const linear =
     phase < enterS
       ? phase * unitsPerS
@@ -157,13 +172,30 @@ function ansiToRgb(ansi: string): [number, number, number] | null {
 // --- FORMATTERS ---
 
 /** A user-orderable piece of the working indicator. */
-type LoaderElement = "spinner" | "text" | "meter" | "elapsed" | "tokens" | "tokenRate";
+type LoaderElement =
+  | "spinner"
+  | "text"
+  | "meter"
+  | "elapsed"
+  | "tokens"
+  | "tokenRate";
 
 /** Default working-indicator element order. */
-const DEFAULT_LOADER_ORDER: readonly LoaderElement[] = ["spinner", "text", "meter", "tokenRate", "elapsed", "tokens"];
+const DEFAULT_LOADER_ORDER: readonly LoaderElement[] = [
+  "spinner",
+  "text",
+  "meter",
+  "tokenRate",
+  "elapsed",
+  "tokens",
+];
 
 /** Elements share a detail group; separators and non-rate details are dimmed. */
-const DETAIL_ELEMENTS: ReadonlySet<LoaderElement> = new Set(["elapsed", "tokens", "tokenRate"]);
+const DETAIL_ELEMENTS: ReadonlySet<LoaderElement> = new Set([
+  "elapsed",
+  "tokens",
+  "tokenRate",
+]);
 
 /**
  * Assemble the working indicator from already-styled pieces, laid out in `order`.
