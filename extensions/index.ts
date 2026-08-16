@@ -20,17 +20,15 @@ import type {
 import { TAGLINES, WORKING_MESSAGES } from "./data.ts";
 import {
   ActivityMeter,
-  buildWorkingMessage,
   formatElapsed,
   formatTokenRate,
-  formatTokens,
   METER_INTERVAL_MS,
   SHIMMER_INTERVAL_MS,
   shimmerString,
-  SPINNER_FRAME_MS,
-  SPINNER_FRAMES,
   StreamingWordCounter,
   TokenRateTracker,
+  truncateToVisible,
+  visibleWidth,
 } from "./format.ts";
 import { pick, createDeck } from "./helpers.ts";
 import { CopiumHeader } from "./components.ts";
@@ -84,6 +82,22 @@ export default function (pi: ExtensionAPI) {
     }
   }
 
+  function alignWorkingMessage(left: string, right: string): string {
+    if (!right) return left;
+
+    const terminalColumns = process.stdout.columns ?? 80;
+    const contentWidth = terminalColumns - 2; // Text paddingX=1 on each side
+    const rightWidth = visibleWidth(right);
+    const maxLeftWidth = Math.max(10, contentWidth - rightWidth - 2);
+    const displayedLeft = truncateToVisible(left, maxLeftWidth);
+    const paddingWidth = Math.max(
+      2,
+      contentWidth - visibleWidth(displayedLeft) - rightWidth,
+    );
+
+    return `${displayedLeft}${" ".repeat(paddingWidth)}${right}`;
+  }
+
   function tick(): void {
     const ctx = state.currentCtx;
     if (!state.busy || !ctx) return;
@@ -91,35 +105,30 @@ export default function (pi: ExtensionAPI) {
     const now = Date.now();
     const total = state.confirmTokens + state.liveTokens;
 
-    // Spinner rendered inside the message (not leading indicator) for consistent appearance.
-    const spinner = ctx.ui.theme.fg(
-      "accent",
-      SPINNER_FRAMES[
-        Math.floor(now / SPINNER_FRAME_MS) % SPINNER_FRAMES.length
-      ]!,
-    );
     const shimmered = shimmerString(
       state.currentWord,
       now - state.shimmerOrigin,
       ctx.ui.theme,
     );
     if (now - state.lastRateSampleAt >= METER_INTERVAL_MS) {
-      state.activityMeter.push(state.rateTracker.sample(total, now));
+      const sampledRate = state.rateTracker.sample(total, now);
+      // Clear meter when displayed rate rounds to zero.
+      state.activityMeter.push(Math.round(sampledRate) === 0 ? 0 : sampledRate);
       state.lastRateSampleAt = now;
     }
-    const meter = state.activityMeter.render(ctx.ui.theme);
     const rate = formatTokenRate(state.rateTracker.rate);
-    const elapsed = formatElapsed(now - state.startTime);
-    const tokens = `↓ ${formatTokens(total)} tokens`;
+    const meter = state.activityMeter.render(ctx.ui.theme);
+    const tokenRate = rate ? ctx.ui.theme.fg("muted", rate) : "";
+    const elapsed = ctx.ui.theme.fg(
+      "dim",
+      formatElapsed(now - state.startTime),
+    );
 
-    const msg = buildWorkingMessage(ctx.ui.theme, {
-      spinner,
-      text: shimmered,
-      meter,
-      tokenRate: rate ? ctx.ui.theme.fg("warning", rate) : "",
-      elapsed,
-      tokens,
-    });
+    const left = shimmered;
+    const details = (tokenRate ? tokenRate + " " : "") + meter;
+    const right =
+      details && elapsed ? `${details}  ${elapsed}` : details || elapsed;
+    const msg = alignWorkingMessage(left, right);
 
     if (msg !== state.lastMessage) {
       state.lastMessage = msg;
@@ -202,6 +211,8 @@ export default function (pi: ExtensionAPI) {
 
     state.busy = false;
     stopTimer();
+    state.activityMeter.reset();
+    state.rateTracker.reset();
     ctx.ui.setWorkingMessage();
 
     state.currentCtx = null;

@@ -15,26 +15,9 @@ const SHIMMER_PADDING = 10;
 export const SHIMMER_INTERVAL_MS = 50;
 export const METER_INTERVAL_MS = 100;
 
-/** Pi's default working-indicator frames (same braille spinner as pi-tui's Loader). */
-export const SPINNER_FRAMES = [
-  "⠋",
-  "⠙",
-  "⠹",
-  "⠸",
-  "⠼",
-  "⠴",
-  "⠦",
-  "⠧",
-  "⠇",
-  "⠏",
-];
-
-/** Milliseconds per spinner frame, matching pi-tui's Loader cadence. */
-export const SPINNER_FRAME_MS = 80;
-
 const METER_WIDTH = 8;
-const METER_BRAILLE = ["⢀", "⣀", "⣠", "⣤", "⣴", "⣶", "⣾", "⣿"] as const;
-const RATE_THRESHOLDS = [0, 5, 10, 15, 22, 30, 40] as const;
+const METER_BLOCKS = [" ", "▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"] as const;
+const RATE_THRESHOLDS = [0, 5, 10, 15, 22, 30, 40, 50] as const;
 
 /** EMA-smoothed output-token rate based on cumulative token estimates. */
 export class TokenRateTracker {
@@ -71,7 +54,7 @@ export class TokenRateTracker {
   }
 }
 
-/** Eight-cell scrolling braille meter for output-token activity. */
+/** Eight-cell scrolling block meter for output-token activity. */
 export class ActivityMeter {
   #levels = Array<number>(METER_WIDTH).fill(0);
 
@@ -91,7 +74,7 @@ export class ActivityMeter {
   render(theme: Pick<Theme, "fg">): string {
     return this.#levels
       .map((level) =>
-        theme.fg(level === 0 ? "dim" : "accent", METER_BRAILLE[level] ?? "⣿"),
+        theme.fg("accent", METER_BLOCKS[level] ?? METER_BLOCKS[0]),
       )
       .join("");
   }
@@ -103,9 +86,7 @@ export class ActivityMeter {
 
 export function formatTokenRate(tokensPerSecond: number): string {
   const rounded = Math.round(Math.max(0, tokensPerSecond));
-  return rounded === 0
-    ? "--- tok/s"
-    : `${rounded.toString().padStart(3)} tok/s`;
+  return rounded === 0 ? "" : `${rounded.toString().padStart(3)} tok/s`;
 }
 
 /**
@@ -171,65 +152,27 @@ function ansiToRgb(ansi: string): [number, number, number] | null {
 
 // --- FORMATTERS ---
 
-/** A user-orderable piece of the working indicator. */
-type LoaderElement =
-  | "spinner"
-  | "text"
-  | "meter"
-  | "elapsed"
-  | "tokens"
-  | "tokenRate";
+/** Visible character count after removing ANSI SGR sequences. */
+export function visibleWidth(text: string): number {
+  return stripAnsi(text).length;
+}
 
-/** Default working-indicator element order. */
-const DEFAULT_LOADER_ORDER: readonly LoaderElement[] = [
-  "spinner",
-  "text",
-  "meter",
-  "tokenRate",
-  "elapsed",
-  "tokens",
-];
-
-/** Elements share a detail group; separators and non-rate details are dimmed. */
-const DETAIL_ELEMENTS: ReadonlySet<LoaderElement> = new Set([
-  "elapsed",
-  "tokens",
-  "tokenRate",
-]);
-
-/**
- * Assemble the working indicator from already-styled pieces, laid out in `order`.
- *
- * Empty/omitted pieces are dropped, and any run of detail elements left adjacent
- * after that renders as one visual group with dim separators.
- * Ported from pi-topping/src/format.ts (MIT, Eric Sison).
- */
-export function buildWorkingMessage(
-  theme: Pick<Theme, "fg">,
-  parts: Partial<Record<LoaderElement, string>>,
-  order: readonly LoaderElement[] = DEFAULT_LOADER_ORDER,
-): string {
-  const segments: string[] = [];
-  let details: string[] = [];
-  const flushDetails = (): void => {
-    if (details.length) segments.push(details.join(theme.fg("dim", " · ")));
-    details = [];
-  };
-
-  for (const element of order) {
-    const value = parts[element];
-    if (!value) continue;
-    if (DETAIL_ELEMENTS.has(element)) {
-      // tokenRate arrives pre-colored; dimming it here would replace its configured color.
-      details.push(element === "tokenRate" ? value : theme.fg("dim", value));
+/** Truncate ANSI-colored text to a visible width, appending a reset. */
+export function truncateToVisible(text: string, maxVis: number): string {
+  if (visibleWidth(text) <= maxVis) return text;
+  let vis = 0;
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === "\x1b") {
+      while (i < text.length && text[i] !== "m") i++;
       continue;
     }
-    flushDetails();
-    segments.push(value);
+    if (++vis > maxVis) return `${text.slice(0, i)}\x1b[0m`;
   }
-  flushDetails();
+  return text;
+}
 
-  return segments.join(" ");
+export function stripAnsi(s: string): string {
+  return s.replace(/\x1b\[[0-9;]*m/g, "");
 }
 
 export function formatElapsed(ms: number): string {
@@ -249,28 +192,6 @@ export function formatElapsed(ms: number): string {
   parts.push(`${seconds}s`);
 
   return parts.join(" ");
-}
-
-const TOKEN_UNITS = [
-  { threshold: 10_000, divisor: 1_000, decimals: 1, suffix: "k" },
-  { threshold: 999_500, divisor: 1_000, decimals: 0, suffix: "k" },
-  { threshold: 10_000_000, divisor: 1_000_000, decimals: 1, suffix: "M" },
-  { threshold: 1_000_000_000, divisor: 1_000_000, decimals: 0, suffix: "M" },
-  { threshold: 1e15, divisor: 1_000_000_000, decimals: 1, suffix: "B" },
-] as const;
-
-/** Format output-token count. */
-export function formatTokens(count: number): string {
-  if (count < 1000) return count.toString();
-  const unit = TOKEN_UNITS.find((u) => count < u.threshold);
-  if (unit) {
-    const value =
-      unit.decimals > 0
-        ? (count / unit.divisor).toFixed(unit.decimals)
-        : `${Math.round(count / unit.divisor)}`;
-    return `${value}${unit.suffix}`;
-  }
-  return `${(count / 1_000_000_000).toFixed(1)}B`;
 }
 
 // --- WORD COUNTER ---
