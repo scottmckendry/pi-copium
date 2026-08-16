@@ -43,8 +43,3 @@ export function createDeck<T>(arr: T[], seed: number): () => T {
     return deck[idx++]!;
   };
 }
-
-// --- MASCOT (from pi-buddy, MIT, apat183) ---
-export function faceLines(eyes: string): string[] {
-  return ["╭─ π ─╮", `│ ${eyes} │`, "╰─┬─┬─╯"];
-}
