@@ -8,11 +8,11 @@ pi package so I don't have to put typescript in my dotfiles. use it if you want,
 
 a custom header to greet you when you start pi:
 
-<img width="407" height="145" alt="image" src="https://github.com/user-attachments/assets/51e93a56-bb96-4e34-9ac7-b21de610898d" />
+<img width="413" height="145" alt="Recording 2026-08-17 at 05 50 52" src="https://github.com/user-attachments/assets/4e8a1adf-7db9-4608-99be-7f5830a86e39" />
 
-a fancy progress/status line to stare at:
+a fancy working message line to stare at:
 
-<img width="609" height="43" alt="image" src="https://github.com/user-attachments/assets/dfc3427e-9415-4671-8bd3-ed2a6bcfa760" />
+<img width="731" height="57" alt="Recording 2026-08-17 at 05 55 41" src="https://github.com/user-attachments/assets/b2de3094-1e74-4cbf-934a-565e0e361049" />
 
 that's all.
 
