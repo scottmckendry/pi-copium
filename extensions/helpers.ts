@@ -2,10 +2,6 @@
  * pi-copium — helper functions
  */
 
-export function pick<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)]!;
-}
-
 // mulberry32 PRNG — deterministic, fast, good distribution
 function mulberry32(seed: number): () => number {
   return () => {
