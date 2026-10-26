@@ -10,7 +10,7 @@ a fancy working message line to stare at:
 
 <img width="731" height="57" alt="Recording 2026-08-17 at 05 55 41" src="https://github.com/user-attachments/assets/b2de3094-1e74-4cbf-934a-565e0e361049" />
 
-that's all.
+plus a hardcoded one-line footer: model, tokens, cost, turn, context, extension statuses.
 
 ## install
 

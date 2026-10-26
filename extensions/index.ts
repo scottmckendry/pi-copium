@@ -19,6 +19,7 @@ import type {
 import { WORKING_MESSAGES } from "./data.ts";
 import { SHIMMER_INTERVAL_MS, shimmerString } from "./format.ts";
 import { createDeck } from "./helpers.ts";
+import { createStatusline } from "./statusline.ts";
 
 interface TurnState {
   currentWord: string;
@@ -43,6 +44,7 @@ function makeTurnState(): TurnState {
 // --- MAIN EXTENSION ---
 export default function (pi: ExtensionAPI) {
   const nextWorkingMessage = createDeck(WORKING_MESSAGES, Date.now());
+  const statusline = createStatusline();
   const state = makeTurnState();
 
   function stopTimer(): void {
@@ -71,9 +73,18 @@ export default function (pi: ExtensionAPI) {
   // --- SESSION START ---
   pi.on("session_start", (_event, ctx) => {
     if (ctx.mode !== "tui") return;
+    statusline.install(ctx);
     // Disable Pi's native leading indicator; shimmer is rendered inside the message.
     ctx.ui.setWorkingIndicator({ frames: [] });
   });
+
+  // --- STATUSLINE ---
+  pi.on("model_select", () => statusline.refresh());
+  pi.on("message_end", () => statusline.refresh());
+  pi.on("turn_end", () => statusline.refresh());
+  pi.on("tool_execution_end", () => statusline.refresh());
+  pi.on("session_compact", () => statusline.refresh());
+  pi.on("session_tree", () => statusline.refresh());
 
   // --- AGENT START (turn begins) ---
   pi.on("agent_start", (_event, ctx) => {
@@ -88,6 +99,7 @@ export default function (pi: ExtensionAPI) {
     stopTimer();
     state.timer = setInterval(() => tick(), SHIMMER_INTERVAL_MS);
     tick();
+    statusline.refresh();
   });
 
   // --- TOOL EXECUTION (re-randomize word) ---
@@ -95,6 +107,7 @@ export default function (pi: ExtensionAPI) {
     if (ctx.mode !== "tui" || !state.busy) return;
     state.currentWord = nextWorkingMessage();
     state.shimmerOrigin = Date.now();
+    statusline.refresh();
   });
 
   // --- AGENT SETTLED (turn ends) ---
@@ -107,12 +120,14 @@ export default function (pi: ExtensionAPI) {
 
     state.currentCtx = null;
     state.lastMessage = undefined;
+    statusline.refresh();
   });
 
   // --- SHUTDOWN ---
   pi.on("session_shutdown", (_event, ctx) => {
     if (ctx.mode !== "tui") return;
     stopTimer();
+    statusline.dispose(ctx);
     ctx.ui.setWorkingIndicator();
     ctx.ui.setEditorComponent(undefined);
   });
