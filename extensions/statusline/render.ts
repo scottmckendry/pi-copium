@@ -1,5 +1,5 @@
 /**
- * pi-copium — statusline
+ * pi-copium — statusline rendering
  *
  * Hardcoded equivalent of the minimal pi-starship config:
  *   $model$tokens$cost$fill$turn$context$extension_status
@@ -88,6 +88,10 @@ function costStyle(value: number): string {
   return STYLE.costHigh;
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function formatStatus(key: string, value: string): string {
   return value
     .trim()
@@ -99,10 +103,6 @@ function formatStatus(key: string, value: string): string {
     .replace(/\s+/gu, " ");
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 function formatStatuses(footerData: ReadonlyFooterDataProvider): string {
   return [...footerData.getExtensionStatuses()]
     .filter(([key, value]) => key !== "starship" && value.trim())
@@ -110,7 +110,7 @@ function formatStatuses(footerData: ReadonlyFooterDataProvider): string {
     .join(" ");
 }
 
-function renderLine(
+export function renderLine(
   ctx: ExtensionContext,
   footerData: ReadonlyFooterDataProvider,
   width: number,
@@ -135,52 +135,6 @@ function renderLine(
   const statuses = formatStatuses(footerData);
   if (statuses) right += paint(statuses, STYLE.status);
 
-  const gap = Math.max(
-    1,
-    width - visibleWidth(left) - visibleWidth(right),
-  );
+  const gap = Math.max(1, width - visibleWidth(left) - visibleWidth(right));
   return truncateToWidth(left + " ".repeat(gap) + right, width, "");
-}
-
-export interface Statusline {
-  install(ctx: ExtensionContext): void;
-  refresh(): void;
-  dispose(ctx: ExtensionContext): void;
-}
-
-export function createStatusline(): Statusline {
-  let requestRender: (() => void) | undefined;
-
-  return {
-    install(ctx) {
-      if (ctx.mode !== "tui") return;
-
-      ctx.ui.setFooter((tui, _theme, footerData) => {
-        requestRender = () => tui.requestRender();
-        const unsubscribe = footerData.onBranchChange(() =>
-          tui.requestRender(),
-        );
-
-        return {
-          dispose() {
-            unsubscribe();
-            requestRender = undefined;
-          },
-          invalidate() {},
-          render(width: number): string[] {
-            return [renderLine(ctx, footerData, width)];
-          },
-        };
-      });
-    },
-
-    refresh() {
-      requestRender?.();
-    },
-
-    dispose(ctx) {
-      requestRender = undefined;
-      ctx.ui.setFooter(undefined);
-    },
-  };
 }
