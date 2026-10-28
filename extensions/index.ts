@@ -11,6 +11,7 @@
  * https://github.com/dmmulroy/.dotfiles
  */
 
+import { SettingsManager } from "@earendil-works/pi-coding-agent";
 import type {
   ExtensionAPI,
   ExtensionContext,
@@ -79,7 +80,15 @@ export default function (pi: ExtensionAPI) {
   });
 
   // --- STATUSLINE ---
-  pi.on("model_select", () => statusline.refresh());
+  pi.on("model_select", async (event, ctx) => {
+    // --- STICKY MODELS ---
+    if (event.source !== "restore") {
+      const settings = SettingsManager.create(ctx.cwd);
+      settings.setDefaultModelAndProvider(event.model.provider, event.model.id);
+      await settings.flush();
+    }
+    statusline.refresh();
+  });
   pi.on("message_end", () => statusline.refresh());
   pi.on("turn_end", () => statusline.refresh());
   pi.on("tool_execution_end", () => statusline.refresh());
