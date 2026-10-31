@@ -18,6 +18,6 @@
     "typescript": "5.9.3"
   },
   "pi": {
-    "extensions": ["./extensions/index.ts"]
+    "extensions": ["./index.ts"]
   }
 }

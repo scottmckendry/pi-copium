@@ -10,5 +10,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["extensions/**/*.ts"]
+  "include": ["index.ts", "statusline/**/*.ts", "sticky-models/**/*.ts", "working-messages/**/*.ts"]
 }
