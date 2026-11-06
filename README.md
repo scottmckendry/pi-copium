@@ -9,6 +9,7 @@ my personal pi config, packaged so I don't have to put typescript in my dotfiles
 - **working messages**: a fancy shimmering working message line to stare at.
 - **statusline**: hardcoded one-line footer
 - **sticky models**: picking or cycling to a model saves it as the global default.
+- **previews**: syntax-highlighted tool previews (commands, files, diffs, search results) via [pi-code-previews](https://github.com/mattleong/pi-code-previews). The Shiki theme is generated from the active Pi theme, tool frames are border-only, and preview borders use the theme accent (cyan in Cyberdream).
 
 ## install
 

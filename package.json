@@ -2,7 +2,9 @@
   "name": "pi-copium",
   "version": "0.1.0",
   "description": "something to smoke while you burn tokens",
-  "keywords": ["pi-package"],
+  "keywords": [
+    "pi-package"
+  ],
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit"
@@ -12,12 +14,18 @@
     "@earendil-works/pi-tui": "*"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "0.84.1",
-    "@earendil-works/pi-tui": "0.84.1",
+    "@earendil-works/pi-coding-agent": "^1.5.0",
+    "@earendil-works/pi-tui": "^1.5.0",
     "@types/node": "20.19.43",
     "typescript": "5.9.3"
   },
   "pi": {
-    "extensions": ["./index.ts"]
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "dependencies": {
+    "pi-code-previews": "^0.1.36",
+    "shiki": "^4.6.0"
   }
 }
