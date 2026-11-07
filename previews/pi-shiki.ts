@@ -13,11 +13,19 @@ import { bundledThemes, bundledThemesInfo, type ThemeRegistration } from "shiki"
 
 export const PI_SHIKI_THEME = "pi-theme";
 
-let source: Theme | undefined;
+// Extensions can be re-evaluated on /reload while the Shiki module stays cached. Keep the source
+// theme on the process so the registered loader always reads the current value.
+type PiShikiGlobal = typeof globalThis & {
+  __piCopiumShikiThemeSource?: Theme;
+};
+
+function getPiShikiThemeSource(): Theme | undefined {
+  return (globalThis as PiShikiGlobal).__piCopiumShikiThemeSource;
+}
 
 /** Called from pi-copium's session_start handler, before pi-code-previews initializes Shiki. */
 export function setPiShikiThemeSource(theme: Theme): void {
-  source = theme;
+  (globalThis as PiShikiGlobal).__piCopiumShikiThemeSource = theme;
 }
 
 interface TokenColor {
@@ -153,14 +161,16 @@ const FALLBACK_THEME: ThemeRegistration = {
 };
 
 /**
- * Register the generated theme with Shiki so pi-code-previews can resolve it by name.
- * Must run before pi-code-previews is imported.
+ * Register (or replace) the generated theme with Shiki so pi-code-previews can resolve it by name.
+ * Must run before pi-code-previews is imported. Replacing unconditionally keeps /reload working even
+ * when this module is re-evaluated but Shiki remains cached.
  */
 export function installPiShikiTheme(): string {
   const themes = bundledThemes as unknown as Record<string, () => Promise<ThemeRegistration>>;
-  if (!(PI_SHIKI_THEME in themes)) {
-    themes[PI_SHIKI_THEME] = async () => (source ? createPiShikiTheme(source) : FALLBACK_THEME);
-  }
+  themes[PI_SHIKI_THEME] = async () => {
+    const source = getPiShikiThemeSource();
+    return source ? createPiShikiTheme(source) : FALLBACK_THEME;
+  };
 
   try {
     const info = bundledThemesInfo as Array<{

@@ -25,7 +25,7 @@
     ]
   },
   "dependencies": {
-    "pi-code-previews": "^0.1.36",
-    "shiki": "^4.6.0"
+    "pi-code-previews": "0.1.36",
+    "shiki": "4.6.0"
   }
 }

@@ -19,7 +19,10 @@ export async function installPreviews(pi: ExtensionAPI): Promise<void> {
 
   // These defaults are read by pi-code-previews when it is first imported.
   // Set them before the dynamic import so an explicit user setting still wins.
-  process.env.CODE_PREVIEW_THEME ??= installPiShikiTheme();
+  // Register the theme on every load: process.env survives /reload, but the Shiki
+  // registry may not.
+  const piShikiTheme = installPiShikiTheme();
+  process.env.CODE_PREVIEW_THEME ??= piShikiTheme;
   process.env.CODE_PREVIEW_TOOL_CALL_BACKGROUND ??= "border";
 
   const { default: codePreviews, withCodePreviewShell } = await import("pi-code-previews");

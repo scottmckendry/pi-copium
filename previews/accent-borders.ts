@@ -7,14 +7,17 @@
  * Error states retain the `error` color so failed calls remain obvious. Idle (`success`) and
  * in-progress (`warning`) frames both use the subtle frame color, so only failures turn red.
  *
- * Icons must be one cell wide so the border layout stays aligned.
+ * Only structural border runs are rewritten; content containing box-drawing characters is passed
+ * through untouched. Icons must be one cell wide so the border layout stays aligned.
  */
 
 import type { ExtensionAPI, Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
 
 const PREVIEW_TOOLS = new Set(["bash", "read", "write", "edit", "grep", "find", "ls"]);
-const BOX_DRAWING = /[─│╭╮╰╯]/;
 const TOP_LEFT = "╭";
+const TOP_FRAME = /^╭[─╮]*$/;
+const BOTTOM_FRAME = /^╰[─╯]*$/;
+const FRAME_EDGE = /^(?:│|╮|╯)$/;
 
 type ToolBorder = {
   icon: string;
@@ -51,37 +54,56 @@ export function accentBorderTheme(theme: Theme, toolName = ""): Theme {
   if (cached) return cached;
 
   const border = TOOL_BORDERS[toolName] ?? DEFAULT_BORDER;
-  // The top border may be drawn as separate fg() calls when a right-side label is present. Hold
-  // the gap until the next border segment, then turn its first dash into the gap.
-  let pendingGap = false;
+  // Borders may be drawn as separate fg() calls when a right-side label is present. Each state
+  // only survives until the next structural segment of that border.
+  let pendingTopGap = false;
+  let pendingBottom = false;
 
   const proxied = new Proxy(theme, {
     get(target, property) {
       if (property === "fg") {
         return (color: ThemeColor, text: string) => {
-          if (!BOX_DRAWING.test(text)) return target.fg(color, text);
+          if (text.length === 0) return target.fg(color, text);
 
-          // Keep errors visible; idle and in-progress frames get the subtle border color.
+          // Keep errors visible; idle and in-progress frames get the subtle frame color.
           const frameColor = color === "error" ? color : FRAME_COLOR;
-          if (!text.includes(TOP_LEFT)) {
-            if (pendingGap) {
-              pendingGap = false;
-              if (text.startsWith("─")) return target.fg(frameColor, ` ${text.slice(1)}`);
+          const iconColor = color === "error" ? "error" : border.color;
+
+          if (TOP_FRAME.test(text)) {
+            const rest = text.slice(TOP_LEFT.length);
+            const icon = target.fg(iconColor, border.icon);
+            if (!rest) {
+              pendingTopGap = true;
+              return icon;
             }
+
+            // Replace the first dash with a space so the frame keeps its original width.
+            pendingTopGap = false;
+            const spaced = rest.startsWith("─") ? ` ${rest.slice(1)}` : rest;
+            return `${icon}${target.fg(frameColor, spaced)}`;
+          }
+
+          // Top border split around a right-side label: the next dash segment carries the gap.
+          if (pendingTopGap) {
+            pendingTopGap = false;
+            if (text.startsWith("─")) return target.fg(frameColor, ` ${text.slice(1)}`);
+          }
+
+          if (BOTTOM_FRAME.test(text)) {
+            pendingBottom = text === "╰";
             return target.fg(frameColor, text);
           }
 
-          const rest = text.replace(TOP_LEFT, () => "");
-          const icon = target.fg(border.color, border.icon);
-          if (!rest) {
-            pendingGap = true;
-            return icon;
+          // Bottom border split around a right-side label: its dash segment is still frame.
+          if (pendingBottom) {
+            pendingBottom = false;
+            if (text.startsWith("─")) return target.fg(frameColor, text);
           }
 
-          // Replace the first dash with a space so the frame keeps its original width.
-          pendingGap = false;
-          const spaced = rest.startsWith("─") ? ` ${rest.slice(1)}` : rest;
-          return `${icon}${target.fg(frameColor, spaced)}`;
+          // Vertical edges and closing corners of split borders.
+          if (FRAME_EDGE.test(text)) return target.fg(frameColor, text);
+
+          return target.fg(color, text);
         };
       }
       const value = Reflect.get(target, property, target);

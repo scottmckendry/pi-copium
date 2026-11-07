@@ -6,8 +6,10 @@
  */
 
 import type {
+  ContextUsage,
   ExtensionContext,
   ReadonlyFooterDataProvider,
+  SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
@@ -45,29 +47,133 @@ function addUsage(totals: Totals, usage: UsageLike | undefined): void {
   totals.cost += usage.cost?.total ?? 0;
 }
 
-function readTotals(ctx: ExtensionContext): Totals {
-  const totals: Totals = { input: 0, output: 0, cost: 0 };
-
-  for (const entry of ctx.sessionManager.getEntries()) {
-    if (entry.type === "message") {
-      if (entry.message.role === "assistant") {
-        addUsage(totals, entry.message.usage);
-      } else if (entry.message.role === "toolResult") {
-        addUsage(totals, entry.message.usage);
-      }
-    } else if (entry.type === "compaction" || entry.type === "branch_summary") {
-      addUsage(totals, entry.usage);
+function addEntry(totals: Totals, entry: SessionEntry): void {
+  if (entry.type === "message") {
+    if (entry.message.role === "assistant" || entry.message.role === "toolResult") {
+      addUsage(totals, entry.message.usage);
     }
+  } else if (entry.type === "usage") {
+    addUsage(totals, entry.usage);
+  } else if (entry.type === "compaction" || entry.type === "branch_summary") {
+    addUsage(totals, entry.usage);
   }
+}
 
-  return totals;
+function isUserMessage(entry: SessionEntry): boolean {
+  return entry.type === "message" && entry.message.role === "user";
 }
 
 function countTurns(ctx: ExtensionContext): number {
   return ctx.sessionManager
     .getBranch()
-    .filter((entry) => entry.type === "message" && entry.message.role === "user")
+    .filter((entry) => isUserMessage(entry))
     .length;
+}
+
+function entryCount(ctx: ExtensionContext): number {
+  const manager = ctx.sessionManager as ExtensionContext["sessionManager"] & {
+    getEntryCount?: () => number;
+  };
+  return typeof manager.getEntryCount === "function"
+    ? manager.getEntryCount()
+    : manager.getEntries().length;
+}
+
+const CONTEXT_REFRESH_MS = 250;
+
+export interface StatuslineStats {
+  readonly input: number;
+  readonly output: number;
+  readonly cost: number;
+  readonly turns: number;
+  recompute(ctx: ExtensionContext): void;
+  update(ctx: ExtensionContext, recomputeTurns?: boolean): void;
+  invalidateContext(): void;
+  contextPercent(ctx: ExtensionContext): string;
+}
+
+/**
+ * Keeps footer values off the per-frame path. Entries are append-only, so token
+ * totals can be advanced incrementally instead of rescanning the session on
+ * every render. Context usage is the expensive part and is throttled separately.
+ */
+export function createStatuslineStats(): StatuslineStats {
+  const totals: Totals = { input: 0, output: 0, cost: 0 };
+  let knownEntries = 0;
+  let turns = 0;
+  let contextUsage: ContextUsage | undefined;
+  let contextUpdatedAt = 0;
+
+  function invalidateContext(): void {
+    contextUpdatedAt = 0;
+  }
+
+  function recomputeValues(ctx: ExtensionContext): void {
+    totals.input = 0;
+    totals.output = 0;
+    totals.cost = 0;
+
+    const entries = ctx.sessionManager.getEntries();
+    for (const entry of entries) addEntry(totals, entry);
+
+    knownEntries = entries.length;
+    turns = countTurns(ctx);
+    invalidateContext();
+  }
+
+  return {
+    get input() {
+      return totals.input;
+    },
+    get output() {
+      return totals.output;
+    },
+    get cost() {
+      return totals.cost;
+    },
+    get turns() {
+      return turns;
+    },
+    recompute: recomputeValues,
+    update(ctx, recomputeTurns = false) {
+      const count = entryCount(ctx);
+      if (count < knownEntries) {
+        recomputeValues(ctx);
+        return;
+      }
+
+      let addedUsers = 0;
+      if (count > knownEntries) {
+        const entries = ctx.sessionManager.getEntries();
+        for (let i = knownEntries; i < entries.length; i++) {
+          const entry = entries[i];
+          if (!entry) continue;
+          addEntry(totals, entry);
+          if (isUserMessage(entry)) addedUsers++;
+        }
+        knownEntries = entries.length;
+        invalidateContext();
+      }
+
+      if (recomputeTurns) {
+        turns = countTurns(ctx);
+        invalidateContext();
+      } else {
+        turns += addedUsers;
+      }
+    },
+    invalidateContext,
+    contextPercent(ctx) {
+      const now = Date.now();
+      if (now - contextUpdatedAt >= CONTEXT_REFRESH_MS) {
+        contextUsage = ctx.getContextUsage();
+        contextUpdatedAt = now;
+      }
+
+      const percent = contextUsage?.percent;
+      return percent === null || percent === undefined ? "?" : `${percent.toFixed(1)}%`;
+    },
+  };
 }
 
 function formatCount(value: number): string {
@@ -114,24 +220,18 @@ export function renderLine(
   ctx: ExtensionContext,
   footerData: ReadonlyFooterDataProvider,
   width: number,
+  stats: StatuslineStats,
 ): string {
-  const totals = readTotals(ctx);
-  const contextUsage = ctx.getContextUsage();
-  const percent =
-    contextUsage?.percent === null || contextUsage?.percent === undefined
-      ? "?"
-      : `${contextUsage.percent.toFixed(1)}%`;
-
   let left = "";
   if (ctx.model) left += paint(`${ctx.model.id} `, STYLE.model);
   left += paint(
-    ` ↑${formatCount(totals.input)} ↓${formatCount(totals.output)} `,
+    ` ↑${formatCount(stats.input)} ↓${formatCount(stats.output)} `,
     STYLE.tokens,
   );
-  left += paint(` $${formatCost(totals.cost)} `, costStyle(totals.cost));
+  left += paint(` $${formatCost(stats.cost)} `, costStyle(stats.cost));
 
-  let right = paint(` #${countTurns(ctx)} `, STYLE.turn);
-  right += paint(` ${percent} `, STYLE.context);
+  let right = paint(` #${stats.turns} `, STYLE.turn);
+  right += paint(` ${stats.contextPercent(ctx)} `, STYLE.context);
   const statuses = formatStatuses(footerData);
   if (statuses) right += paint(statuses, STYLE.status);
 

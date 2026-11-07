@@ -72,28 +72,34 @@ export function installWebAccessPreviews(
 
     // withCodePreviewShell() decorates a tool definition, not a renderer set. Give it a synthetic
     // definition carrying the real renderers so we can reuse its shell without owning the tool.
-    const shell = withCodePreviewShell(
-      {
-        name: toolName,
-        label: toolName,
-        description: "",
-        parameters: {},
-        ...renderers,
-      } as unknown as ToolDefinition,
-      { preserveSelfShell: true },
-    );
+    // This relies on the public helper only reading renderers; if that contract changes, leave the
+    // tool's own renderers alone rather than breaking the call.
+    try {
+      const shell = withCodePreviewShell(
+        {
+          name: toolName,
+          label: toolName,
+          description: "",
+          parameters: {},
+          ...renderers,
+        } as unknown as ToolDefinition,
+        { preserveSelfShell: true },
+      );
 
-    return {
-      ...renderers,
-      renderShell: shell.renderShell,
-      renderCall: shell.renderCall
-        ? (args, theme, context) =>
-            shell.renderCall!(args, accentBorderTheme(theme, toolName), context)
-        : undefined,
-      renderResult: shell.renderResult
-        ? (result, options, theme, context) =>
-            shell.renderResult!(result, options, accentBorderTheme(theme, toolName), context)
-        : undefined,
-    };
+      return {
+        ...renderers,
+        renderShell: shell.renderShell,
+        renderCall: shell.renderCall
+          ? (args, theme, context) =>
+              shell.renderCall!(args, accentBorderTheme(theme, toolName), context)
+          : undefined,
+        renderResult: shell.renderResult
+          ? (result, options, theme, context) =>
+              shell.renderResult!(result, options, accentBorderTheme(theme, toolName), context)
+          : undefined,
+      };
+    } catch {
+      return renderers;
+    }
   });
 }

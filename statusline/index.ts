@@ -10,15 +10,22 @@ import type {
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 
-import { renderLine } from "./render.ts";
+import { createStatuslineStats, renderLine } from "./render.ts";
+
+interface RefreshOptions {
+  recomputeTurns?: boolean;
+  invalidateContext?: boolean;
+}
 
 export interface Statusline {
   install(ctx: ExtensionContext): void;
-  refresh(): void;
+  refresh(options?: RefreshOptions): void;
   dispose(ctx: ExtensionContext): void;
 }
 
 export function createStatusline(): Statusline {
+  const stats = createStatuslineStats();
+  let currentCtx: ExtensionContext | undefined;
   let requestRender: (() => void) | undefined;
   let installed = false;
 
@@ -26,6 +33,8 @@ export function createStatusline(): Statusline {
     install(ctx) {
       if (ctx.mode !== "tui" || installed) return;
       installed = true;
+      currentCtx = ctx;
+      stats.recompute(ctx);
 
       ctx.ui.setFooter((tui, _theme, footerData) => {
         const render = () => tui.requestRender();
@@ -40,17 +49,22 @@ export function createStatusline(): Statusline {
           },
           invalidate() {},
           render(width: number): string[] {
-            return [renderLine(ctx, footerData, width)];
+            return [renderLine(ctx, footerData, width, stats)];
           },
         };
       });
     },
 
-    refresh() {
+    refresh(options) {
+      if (currentCtx) {
+        if (options?.invalidateContext) stats.invalidateContext();
+        stats.update(currentCtx, options?.recomputeTurns);
+      }
       requestRender?.();
     },
 
     dispose(ctx) {
+      currentCtx = undefined;
       requestRender = undefined;
       if (!installed) return;
       installed = false;
@@ -63,7 +77,7 @@ export function installStatusline(pi: ExtensionAPI): void {
   const statusline = createStatusline();
 
   pi.on("session_start", (_event, ctx) => statusline.install(ctx));
-  pi.on("model_select", () => statusline.refresh());
+  pi.on("model_select", () => statusline.refresh({ invalidateContext: true }));
 
   // Lifecycle events that can change footer data.
   pi.on("agent_start", () => statusline.refresh());
@@ -72,8 +86,12 @@ export function installStatusline(pi: ExtensionAPI): void {
   pi.on("message_end", () => statusline.refresh());
   pi.on("turn_end", () => statusline.refresh());
   pi.on("tool_execution_end", () => statusline.refresh());
-  pi.on("session_compact", () => statusline.refresh());
-  pi.on("session_tree", () => statusline.refresh());
+  pi.on("session_compact", () =>
+    statusline.refresh({ invalidateContext: true }),
+  );
+  pi.on("session_tree", () =>
+    statusline.refresh({ recomputeTurns: true, invalidateContext: true }),
+  );
 
   pi.on("session_shutdown", (_event, ctx) => statusline.dispose(ctx));
 }
