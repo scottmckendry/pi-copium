@@ -9,7 +9,8 @@
  * - sticky models: persists the selected model as the global default
  * - session pruning: automatic cleanup of sessions inactive for 30 days
  * - previews: syntax-highlighted tool previews via pi-code-previews, with a Shiki
- *   theme generated from the active Pi theme and accent-colored tool frames
+ *   theme generated from the active Pi theme, subtle frames, and per-tool icon colors. Also
+ *   applies the same framed previews to pi-web-access tools when that extension is installed.
  *
  * Shimmer effect ported from pi-topping by Eric Sison
  * https://github.com/underactive/pi-topping
